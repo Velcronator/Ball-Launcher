@@ -1,23 +1,67 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+
 public class BallHandler : MonoBehaviour
 {
-    private Camera m_Camera;
+    [SerializeField] private GameObject _ballPrefab;
+    [SerializeField] private Rigidbody2D _pivot;
+    [SerializeField] private float _detachDuration = 0.15f;
+    [SerializeField] private float _respawnDelay = 1f;
 
-    private void Start()
+    private Rigidbody2D _currentBallRigidbody;
+    private SpringJoint2D _currentBallSprintJoint;
+    private Camera _mainCamera;
+    private bool _isDragging;
+
+    // Start is called before the first frame update
+    void Start()
     {
-        m_Camera = Camera.main;
+        _mainCamera = Camera.main;
+        SpawnNewBall();
     }
 
-    Vector2 _touchPosition;
     // Update is called once per frame
     void Update()
     {
-        if (!Touchscreen.current.primaryTouch.press.isPressed) { return; }
-        _touchPosition = Touchscreen.current.primaryTouch.position.ReadValue();
+        if (_currentBallRigidbody == null) { return; }
 
-        Vector3 worldPosition = m_Camera.ScreenToWorldPoint(_touchPosition);
+        if (!Touchscreen.current.primaryTouch.press.isPressed)
+        {
+            if (_isDragging)
+            {
+                LaunchBall();
+            }
+            _isDragging = false;
+            return;
+        }
+        _isDragging = true;
+        _currentBallRigidbody.isKinematic = true;
+        Vector2 touchPosition = Touchscreen.current.primaryTouch.position.ReadValue();
+        Vector3 worldPosition = _mainCamera.ScreenToWorldPoint(touchPosition);
+        _currentBallRigidbody.position = worldPosition;
+    }
 
-        Debug.Log(worldPosition);
+    private void SpawnNewBall()
+    {
+        GameObject ballInstance = Instantiate(_ballPrefab, _pivot.position, Quaternion.identity);
+        _currentBallRigidbody = ballInstance.GetComponent<Rigidbody2D>();
+        _currentBallSprintJoint = ballInstance.GetComponent <SpringJoint2D>();
+
+        _currentBallSprintJoint.connectedBody = _pivot;
+    }
+
+    private void LaunchBall()
+    {
+        _currentBallRigidbody.isKinematic = false;
+        _currentBallRigidbody = null;
+        Invoke(nameof(DetachBall), _detachDuration);
+    }
+
+    private void DetachBall()
+    {
+        _currentBallSprintJoint.enabled = false;
+        _currentBallSprintJoint = null;
+
+        Invoke(nameof(SpawnNewBall), _respawnDelay);
     }
 }
